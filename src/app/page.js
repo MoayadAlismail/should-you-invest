@@ -1,95 +1,89 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+'use client';
+
+import { useState } from 'react';
+import axios from 'axios';
+import './globals.css'; // Ensure to import the global styles
 
 export default function Home() {
-  return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol>
-          <li>
-            Get started by editing <code>src/app/page.js</code>.
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [symbol, setSymbol] = useState('');
+  const [stockData, setStockData] = useState(null);
+  const [chatResponse, setChatResponse] = useState('');
+  const [error, setError] = useState('');
 
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={styles.secondary}
-          >
-            Read our docs
-          </a>
+  const handleFetchStockData = async () => {
+    setError(''); // Reset any previous error messages
+
+    if (!symbol) {
+      setError('Please enter a stock symbol.');
+      return;
+    }
+
+    try {
+      // Fetch stock data from Alpha Vantage
+      const response = await axios.get(`/api/stock?symbol=${symbol}`);
+      
+      // Check if the response has an error
+      if (response.data.error) {
+        setError(response.data.error);
+        return;
+      }
+
+      // Set the fetched stock data
+      const rawStockData = response.data;
+      setStockData(rawStockData);
+      
+      // Pass raw data to ChatGPT API for analysis
+      await fetchChatAnalysis(rawStockData);
+    } catch (error) {
+      console.error("Error fetching stock data:", error.response ? error.response.data : error.message);
+      setError("An error occurred while fetching the stock data.");
+    }
+  };
+
+  const fetchChatAnalysis = async (rawData) => {
+    try {
+      // Send the raw stock data directly to ChatGPT API
+      const chatResponse = await axios.post('/api/chatgpt', {
+        prompt: `Please analyze the following stock data technically using a strategy of your choice and give me a recommendation of whether I should buy, sell, or wait: ${JSON.stringify(rawData)}`, // Updated prompt
+      });
+
+      // Log the entire response for debugging
+      console.log("ChatGPT API response:", chatResponse.data);
+
+      // Check if the response structure is as expected
+      if (chatResponse.data && chatResponse.data.choices && chatResponse.data.choices.length > 0) {
+        setChatResponse(chatResponse.data.choices[0].message.content); // Set the response from ChatGPT
+      } else {
+        console.error("Unexpected response structure:", chatResponse.data);
+        setChatResponse("Unexpected response from ChatGPT.");
+      }
+    } catch (error) {
+      console.error("Error fetching ChatGPT response:", error.response ? error.response.data : error.message);
+      setChatResponse("An error occurred while fetching the analysis from ChatGPT.");
+    } 
+  };
+
+  return (
+    <div className="container">
+      <h1 className="title">Should you invest?</h1>
+      <input
+        type="text"
+        value={symbol}
+        onChange={(e) => setSymbol(e.target.value)}
+        placeholder="Enter stock symbol"
+        className="input"
+      />
+      <button onClick={handleFetchStockData} className="button">Fetch Stock Data and Analyze</button>
+
+      {error && <p className="error">{error}</p>}
+
+      {chatResponse && (
+        <div className="response">
+          <h2 className="response-title">AI Analysis for {symbol}</h2>
+          <p className="response-content">{chatResponse}</p>
         </div>
-      </main>
-      <footer className={styles.footer}>
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      )}
     </div>
   );
 }
+
